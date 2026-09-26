@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hunter System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #0a0b0e;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .neon-border-cyan {
+      border: 1px solid #00e5ff;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+    }
+    .neon-border-green {
+      border: 1px solid #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+    }
+    .neon-border-red {
+      border: 1px solid #ff3333;
+      box-shadow: 0 0 12px rgba(255, 51, 51, 0.3);
+    }
+    .card-bg {
+      background-color: #141721;
+    }
+    .penalty-bg {
+      background-color: #1a0808;
+    }
+    .rest-bg {
+      background-color: #062419;
+    }
+    .text-cyan {
+      color: #00e5ff;
+    }
+    .text-green {
+      color: #10b981;
+    }
+    .text-red {
+      color: #ff4d4d;
+    }
+    .glow-text {
+      text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+    }
+  </style>
+</head>
+<body class="p-4 pb-16 min-h-screen flex flex-col items-center select-none">
+
+  <div class="w-full max-w-md space-y-4">
+    <!-- Profile & Header -->
+    <div class="card-bg p-4 rounded-xl neon-border-cyan">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 id="hunter-name" class="text-xl font-bold text-cyan glow-text tracking-wider cursor-pointer" onclick="editName()">Mostafa Abdelrahman ✏️</h1>
+          <p id="hunter-rank-level" class="text-xs text-gray-400 mt-1">E-RANK HUNTER | LEVEL 1</p>
+        </div>
+        <div class="text-right">
+          <span class="text-xs text-gray-400 block">TIME REMAINING</span>
+          <span id="countdown" class="text-sm font-bold text-cyan">00:00:00</span>
+        </div>
+      </div>
+
+      <!-- Weekly Streak Progress (7-Day Cycle) -->
+      <div class="mt-4 pt-3 border-t border-gray-800">
+        <div class="flex justify-between text-xs mb-1">
+          <span class="text-gray-300">Active Streak: <strong id="streak-count" class="text-cyan">0</strong> Days</span>
+          <span id="weekly-status-text" class="text-gray-400">Day 1 of 7</span>
+        </div>
+        <div class="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+          <div id="streak-bar" class="bg-cyan-400 h-2 transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Tools (Export, Import, Docs) -->
+    <div class="flex justify-between items-center px-1 text-xs">
+      <div class="flex gap-2">
+        <button onclick="exportData()" class="px-2.5 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
+          💾 Export
+        </button>
+        <button onclick="document.getElementById('import-file').click()" class="px-2.5 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
+          📂 Import
+        </button>
+        <input type="file" id="import-file" accept=".json" class="hidden" onchange="importData(event)">
+      </div>
+      <button onclick="toggleDocs()" class="px-2.5 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-cyan rounded transition flex items-center gap-1">
+        📖 Docs
+      </button>
+    </div>
+
+    <!-- System Documentation -->
+    <div id="docs-card" class="card-bg p-4 rounded-xl border border-cyan-500/50 hidden space-y-3 text-xs leading-relaxed">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h3 class="font-bold text-cyan uppercase tracking-wider text-sm">📜 HUNTER PROTOCOLS</h3>
+        <button onclick="toggleDocs()" class="text-gray-400 hover:text-red-400 font-bold px-1">✕</button>
+      </div>
+      <div class="space-y-2 text-gray-300 max-h-64 overflow-y-auto pr-1">
+        <p><strong class="text-cyan">1. Weekly Cycle:</strong> الأسبوع 7 أيام: السبت للأربعاء تمارين، والخميس والجمعة استشفاء وراحة دون عقوبات.</p>
+        <p><strong class="text-green">2. Recovery Protocol:</strong> الخميس والجمعة معفيان تماماً من العقاب ولا يؤثران على الستريك بالسلب.</p>
+        <p><strong class="text-red">3. Penalty:</strong> تفوتك أي تمرين في أيام التمارين يفعّل العقوبة عند منتصف الليل.</p>
+      </div>
+    </div>
+
+    <!-- Mini Calendar -->
+    <div class="card-bg p-3 rounded-xl border border-gray-800">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-xs font-bold text-gray-400 tracking-wider">📅 7-DAY LOG (CLICK TO TOGGLE)</span>
+      </div>
+      <div id="calendar-days" class="grid grid-cols-7 gap-1 text-center"></div>
+    </div>
+
+    <!-- Rest Day Notice Banner (الخميس والجمعة) -->
+    <div id="rest-day-banner" class="rest-bg p-4 rounded-xl neon-border-green hidden space-y-2">
+      <div class="flex items-center gap-2">
+        <span class="text-lg">🌿</span>
+        <div>
+          <h3 class="text-sm font-bold text-green uppercase tracking-wider">RECOVERY PROTOCOL: ACTIVE</h3>
+          <p class="text-xs text-gray-300 mt-0.5">Today is a scheduled rest day (Thursday/Friday). No penalty will be applied.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Penalty Zone Card -->
+    <div id="penalty-card" class="penalty-bg p-4 rounded-xl neon-border-red hidden space-y-3">
+      <div class="flex justify-between items-start">
+        <div>
+          <h3 class="text-sm font-bold text-red uppercase tracking-wider">⚠️ PENALTY QUEST ACTIVE</h3>
+          <p class="text-xs text-gray-400 mt-0.5">Training day missed. Complete penalty to unlock system.</p>
+        </div>
+        <button onclick="editPenaltyText()" class="text-xs border border-red-500 text-red px-2 py-0.5 rounded hover:bg-red-950">
+          Edit
+        </button>
+      </div>
+
+      <div class="p-3 bg-black/40 rounded border border-red-900/50">
+        <p id="penalty-task-text" class="text-sm font-semibold text-gray-200">1000 استغفار</p>
+      </div>
+
+      <button onclick="confirmPenaltyDone()" class="w-full py-2.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wide transition shadow-[0_0_10px_rgba(255,51,51,0.5)]">
+        CONFIRM PENALTY COMPLETED
+      </button>
+    </div>
+
+    <!-- Daily Quests Section -->
+    <div id="quests-section-container" class="space-y-4">
+      <div class="flex justify-between items-center pt-2">
+        <h2 class="text-sm font-bold text-cyan tracking-wider flex items-center gap-2">
+          <span>⚔️ DAILY QUESTS</span>
+        </h2>
+        <button onclick="openAddQuestModal()" class="text-xs border border-cyan-500 text-cyan px-2.5 py-1 rounded hover:bg-cyan-950 transition">
+          + ADD QUEST
+        </button>
+      </div>
+
+      <div id="quest-list" class="space-y-3"></div>
+    </div>
+
+    <!-- Complete Day Button -->
+    <button id="complete-day-btn" onclick="completeDay()"
+      class="w-full py-3.5 rounded-lg font-bold text-sm tracking-wider uppercase border transition duration-200 cursor-pointer shadow-lg">
+      COMPLETE DAY
+    </button>
+  </div>
+
+  <script>
+    const RANKS = ["E-Rank", "D-Rank", "C-Rank", "B-Rank", "A-Rank", "S-Rank"];
+
+    function getFormattedDate(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function getTodayKey() {
+      return getFormattedDate(new Date());
+    }
+
+    // فحص ما إذا كان اليوم خميس (4) أو جمعة (5)
+    function isDayRestDay(dateObj) {
+      const day = dateObj.getDay();
+      return day === 4 || day === 5; // 4: Thursday, 5: Friday
+    }
+
+    function isTodayRestDay() {
+      return isDayRestDay(new Date());
+    }
+
+    let state = {
+      name: "Mostafa Abdelrahman",
+      level: 1,
+      streak: 0,
+      penaltyText: "1000 استغفار",
+      penaltyActive: false,
+      lastActiveDate: getTodayKey(),
+      history: {},
+      quests: [
+        { id: 1, name: "Push-ups", current: 0, target: 100 },
+        { id: 2, name: "Sit-ups", current: 0, target: 100 },
+        { id: 3, name: "Squats", current: 0, target: 100 }
+      ]
+    };
+
+    function loadData() {
+      const saved = localStorage.getItem("hunter_system_data");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          state = Object.assign(state, parsed);
+        } catch (e) {}
+      }
+
+      // إلغاء العقوبة لو صادفت يوم راحة
+      if (isTodayRestDay()) {
+        state.penaltyActive = false;
+      }
+
+      checkDayTransition();
+      recalculateStreakAndLevel();
+      render();
+    }
+
+    function saveData() {
+      localStorage.setItem("hunter_system_data", JSON.stringify(state));
+    }
+
+    function checkDayTransition() {
+      const today = getTodayKey();
+      if (!state.lastActiveDate) {
+        state.lastActiveDate = today;
+        saveData();
+        return;
+      }
+
+      if (state.lastActiveDate !== today) {
+        const parts = state.lastActiveDate.split("-");
+        const prevDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        const wasPrevDayRest = isDayRestDay(prevDate);
+        const wasPrevCompleted = state.history[state.lastActiveDate] === true;
+
+        if (wasPrevDayRest) {
+          // يوم الراحة يعتبر مكتملاً ومحمياً تلقائياً
+          state.history[state.lastActiveDate] = true;
+          state.penaltyActive = false;
+        } else if (!wasPrevCompleted && !state.penaltyActive) {
+          // يوم تدريب ولم يكتمل
+          state.penaltyActive = true;
+          state.streak = 0;
+        }
+
+        state.quests.forEach(q => q.current = 0);
+        state.lastActiveDate = today;
+        saveData();
+      }
+    }
+
+    function recalculateStreakAndLevel() {
+      let currentStreak = 0;
+      let checkDate = new Date();
+      
+      const todayKey = getFormattedDate(checkDate);
+      if (state.history[todayKey] || isTodayRestDay()) {
+        currentStreak++;
+      }
+      
+      checkDate.setDate(checkDate.getDate() - 1);
+      while (true) {
+        const key = getFormattedDate(checkDate);
+        const wasRest = isDayRestDay(checkDate);
+        if (state.history[key] || wasRest) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+
+      state.streak = currentStreak;
+      state.level = 1 + Math.floor(state.streak / 7);
+    }
+
+    function render() {
+      document.getElementById("hunter-name").innerText = state.name + " ✏️";
+      const rankIndex = Math.min(Math.floor((state.level - 1) / 2), RANKS.length - 1);
+      document.getElementById("hunter-rank-level").innerText = `${RANKS[rankIndex].toUpperCase()} HUNTER | LEVEL ${state.level}`;
+
+      document.getElementById("streak-count").innerText = state.streak;
+      
+      const dayInWeek = (state.streak % 7) + 1;
+      const progressPercent = Math.min(100, Math.floor(((state.streak % 7) / 7) * 100));
+      document.getElementById("streak-bar").style.width = `${progressPercent}%`;
+
+      const rest = isTodayRestDay();
+      const statusText = document.getElementById("weekly-status-text");
+      
+      if (rest) {
+        statusText.innerHTML = `<span class="text-green font-bold">RECOVERY DAY (Thu/Fri) 🌿</span>`;
+      } else {
+        statusText.innerText = `Day ${dayInWeek} of 7 (Training Day)`;
+      }
+
+      const restBanner = document.getElementById("rest-day-banner");
+      const questsContainer = document.getElementById("quests-section-container");
+
+      if (rest) {
+        restBanner.classList.remove("hidden");
+        questsContainer.classList.add("opacity-40", "pointer-events-none");
+      } else {
+        restBanner.classList.add("hidden");
+        questsContainer.classList.remove("opacity-40", "pointer-events-none");
+      }
+
+      document.getElementById("penalty-task-text").innerText = state.penaltyText;
+      const penaltyEl = document.getElementById("penalty-card");
+      if (state.penaltyActive && !rest) {
+        penaltyEl.classList.remove("hidden");
+      } else {
+        penaltyEl.classList.add("hidden");
+      }
+
+      renderCalendar();
+
+      const listEl = document.getElementById("quest-list");
+      listEl.innerHTML = "";
+
+      const todayKey = getTodayKey();
+      const isDayCompletedToday = state.history[todayKey] === true;
+
+      state.quests.forEach((q, index) => {
+        const pct = Math.min(100, Math.floor((q.current / q.target) * 100));
+
+        const card = document.createElement("div");
+        card.className = `card-bg p-3 rounded-lg border transition ${pct >= 100 ? "border-cyan-500/70" : "border-gray-800"}`;
+        card.innerHTML = `
+          <div class="flex justify-between items-center mb-1">
+            <div class="flex items-center gap-1.5">
+              <span class="font-bold text-sm text-gray-200">${q.name}</span>
+              <button onclick="editQuestName(${q.id})" title="Edit Name" class="text-xs text-gray-400 hover:text-cyan-400 p-0.5">✏️</button>
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="moveQuest(${index}, -1)" title="Move Up" class="text-xs px-1.5 py-0.5 bg-gray-800 text-gray-400 hover:text-cyan-400 rounded ${index === 0 ? 'opacity-30 cursor-not-allowed' : ''}">▲</button>
+              <button onclick="moveQuest(${index}, 1)" title="Move Down" class="text-xs px-1.5 py-0.5 bg-gray-800 text-gray-400 hover:text-cyan-400 rounded ${index === state.quests.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}">▼</button>
+              <button onclick="deleteQuest(${q.id})" title="Delete" class="text-xs text-gray-500 hover:text-red-400 px-1 ml-1">✕</button>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center text-xs text-gray-400 mb-1.5">
+            <div class="flex items-center gap-1.5">
+              <span>Progress: ${q.current} / <strong onclick="editTarget(${q.id})" class="text-cyan cursor-pointer underline decoration-dotted decoration-cyan-500 hover:text-white">${q.target}</strong></span>
+              <button onclick="editTarget(${q.id})" class="text-[10px] border border-cyan-500/50 bg-cyan-950/40 text-cyan px-1.5 py-0.5 rounded hover:bg-cyan-900 transition">
+                🎯 Target
+              </button>
+            </div>
+            <span class="font-semibold ${pct >= 100 ? 'text-cyan' : 'text-gray-300'}">${pct}%</span>
+          </div>
+
+          <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden mb-2.5">
+            <div class="bg-cyan-400 h-1.5 transition-all duration-200" style="width: ${pct}%"></div>
+          </div>
+          <div class="flex justify-end gap-1.5 text-xs">
+            <button onclick="updateQuest(${q.id}, -1)" ${state.penaltyActive || isDayCompletedToday || rest ? 'disabled' : ''} class="px-2 py-1 bg-gray-800 rounded hover:bg-gray-700 text-gray-300 disabled:opacity-30">-1</button>
+            <button onclick="updateQuest(${q.id}, 1)" ${state.penaltyActive || isDayCompletedToday || rest ? 'disabled' : ''} class="px-2.5 py-1 bg-gray-800 rounded hover:bg-cyan-900 text-cyan disabled:opacity-30">+1</button>
+            <button onclick="completeSingleQuest(${q.id})" ${state.penaltyActive || isDayCompletedToday || rest ? 'disabled' : ''} class="px-2.5 py-1 bg-cyan-950/60 border border-cyan-500/60 text-cyan hover:bg-cyan-900 rounded font-semibold disabled:opacity-30 transition">✔ Done</button>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+
+      const completeBtn = document.getElementById("complete-day-btn");
+      if (isDayCompletedToday) {
+        completeBtn.className = "w-full py-3.5 rounded-lg font-bold text-sm tracking-wider uppercase border border-cyan-700 bg-cyan-950/40 text-cyan cursor-not-allowed opacity-80";
+        completeBtn.innerText = "✅ TODAY ALREADY COMPLETED";
+      } else if (state.penaltyActive && !rest) {
+        completeBtn.className = "w-full py-3.5 rounded-lg font-bold text-sm tracking-wider uppercase border border-red-900 bg-red-950/30 text-red-400 cursor-not-allowed";
+        completeBtn.innerText = "LOCKED (PENALTY ACTIVE)";
+      } else if (rest) {
+        completeBtn.className = "w-full py-3.5 rounded-lg font-bold text-sm tracking-wider uppercase border border-green-500 bg-green-500/20 text-green hover:bg-green-500/30 transition shadow-[0_0_15px_rgba(16,185,129,0.4)] cursor-pointer animate-pulse";
+        completeBtn.innerText = "🌿 LOG RECOVERY DAY";
+      } else {
+        const allQuestsDone = state.quests.length > 0 && state.quests.every(q => q.current >= q.target);
+        if (allQuestsDone) {
+          completeBtn.className = "w-full py-3.5 rounded-lg font-bold text-sm tracking-wider uppercase border border-cyan-400 bg-cyan-500/20 text-cyan hover:bg-cyan-500/30 transition shadow-[0_0_15px_rgba(0,229,255,0.4)] cursor-pointer animate-pulse";
+          completeBtn.innerText = "⚡ COMPLETE DAY (READY)";
+        } else {
+          completeBtn.className = "w-full py-3.5 rounded-lg font-bold text-sm tracking-wider uppercase border border-gray-700 bg-gray-900/80 text-gray-400 hover:border-gray-500 hover:text-gray-200 transition cursor-pointer";
+          completeBtn.innerText = "COMPLETE DAY";
+        }
+      }
+    }
+
+    function renderCalendar() {
+      const calEl = document.getElementById("calendar-days");
+      calEl.innerHTML = "";
+
+      const today = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(today.getDate() - i);
+        const key = getFormattedDate(d);
+        const isCompleted = state.history[key] === true;
+        const isRest = isDayRestDay(d);
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'narrow' });
+        const dateNum = d.getDate();
+
+        const box = document.createElement("div");
+        box.onclick = () => toggleDayStatus(key);
+        
+        let borderClass = "border-gray-800 bg-gray-900/40 text-gray-500";
+        if (isRest) {
+          borderClass = "border-green-600/60 bg-green-950/30 text-green-400";
+        } else if (isCompleted) {
+          borderClass = "border-cyan-500 bg-cyan-950/40 text-cyan shadow-[0_0_6px_rgba(0,229,255,0.2)]";
+        }
+
+        box.className = `p-2 rounded cursor-pointer border transition flex flex-col items-center justify-center ${borderClass}`;
+        box.innerHTML = `
+          <span class="text-[10px] text-gray-400">${dayLabel}</span>
+          <span class="text-xs font-bold my-0.5">${dateNum}</span>
+          <span class="text-[10px]">${isRest ? "🌿" : (isCompleted ? "✔" : "✖")}</span>
+        `;
+        calEl.appendChild(box);
+      }
+    }
+
+    function toggleDayStatus(dateKey) {
+      state.history[dateKey] = !state.history[dateKey];
+      recalculateStreakAndLevel();
+      saveData();
+      render();
+    }
+
+    function updateQuest(id, amount) {
+      if (state.penaltyActive || isTodayRestDay()) return;
+      const todayKey = getTodayKey();
+      if (state.history[todayKey]) return;
+
+      const quest = state.quests.find(q => q.id === id);
+      if (!quest) return;
+      quest.current = Math.max(0, quest.current + amount);
+      saveData();
+      render();
+    }
+
+    function completeSingleQuest(id) {
+      if (state.penaltyActive || isTodayRestDay()) return;
+      const todayKey = getTodayKey();
+      if (state.history[todayKey]) return;
+
+      const quest = state.quests.find(q => q.id === id);
+      if (!quest) return;
+      quest.current = quest.target;
+      saveData();
+      render();
+    }
+
+    function editTarget(id) {
+      const quest = state.quests.find(q => q.id === id);
+      if (!quest) return;
+      
+      const newTarget = prompt(`Edit Target for "${quest.name}":`, quest.target);
+      if (newTarget === null) return;
+      
+      const parsed = parseInt(newTarget, 10);
+      if (isNaN(parsed) || parsed <= 0) return;
+
+      quest.target = parsed;
+      saveData();
+      render();
+    }
+
+    function editQuestName(id) {
+      const quest = state.quests.find(q => q.id === id);
+      if (!quest) return;
+      
+      const newName = prompt("Edit Quest Name:", quest.name);
+      if (newName && newName.trim()) {
+        quest.name = newName.trim();
+        saveData();
+        render();
+      }
+    }
+
+    function moveQuest(index, direction) {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= state.quests.length) return;
+      
+      const temp = state.quests[index];
+      state.quests[index] = state.quests[targetIndex];
+      state.quests[targetIndex] = temp;
+
+      saveData();
+      render();
+    }
+
+    function openAddQuestModal() {
+      const name = prompt("Enter Quest Name:");
+      if (!name) return;
+      const target = parseInt(prompt("Enter Target Count:", "100"), 10);
+      if (isNaN(target) || target <= 0) return;
+
+      state.quests.push({
+        id: Date.now(),
+        name: name.trim(),
+        current: 0,
+        target: target
+      });
+      saveData();
+      render();
+    }
+
+    function deleteQuest(id) {
+      if (confirm("Delete this quest?")) {
+        state.quests = state.quests.filter(q => q.id !== id);
+        saveData();
+        render();
+      }
+    }
+
+    function completeDay() {
+      const todayKey = getTodayKey();
+      if (state.history[todayKey]) {
+        alert("You already completed your quests for today! Rest until tomorrow.");
+        return;
+      }
+
+      const rest = isTodayRestDay();
+
+      if (state.penaltyActive && !rest) {
+        alert("⚠️ Complete your Penalty Quest first!");
+        return;
+      }
+
+      if (!rest) {
+        const unfinished = state.quests.filter(q => q.current < q.target);
+        if (unfinished.length > 0) {
+          const questNames = unfinished.map(q => `• ${q.name} (${q.current}/${q.target})`).join("\n");
+          alert(`⚠️ Incomplete Quests:\n\n${questNames}`);
+          return;
+        }
+      }
+
+      state.history[todayKey] = true;
+      const prevLevel = state.level;
+      recalculateStreakAndLevel();
+      saveData();
+      render();
+
+      if (state.level > prevLevel) {
+        alert(`🔥 [LEVEL UP] WEEK COMPLETED!\nYou have successfully reached LEVEL ${state.level}!`);
+      } else if (rest) {
+        alert(`🌿 Recovery day logged! Enjoy your rest.`);
+      } else {
+        alert(`✅ Day logged! Current Streak: ${state.streak} Days.`);
+      }
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `hunter_backup_${getTodayKey()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && imported.quests) {
+            state = Object.assign(state, imported);
+            saveData();
+            recalculateStreakAndLevel();
+            render();
+            alert("✅ Backup imported successfully!");
+          } else {
+            alert("⚠️ Invalid backup file format.");
+          }
+        } catch (err) {
+          alert("⚠️ Error reading JSON file.");
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
+
+    function toggleDocs() {
+      const docs = document.getElementById("docs-card");
+      docs.classList.toggle("hidden");
+    }
+
+    function editPenaltyText() {
+      const newText = prompt("Edit Penalty Task:", state.penaltyText);
+      if (newText) {
+        state.penaltyText = newText;
+        saveData();
+        render();
+      }
+    }
+
+    function confirmPenaltyDone() {
+      if (confirm("Confirm that you have completed the penalty task?")) {
+        state.penaltyActive = false;
+        state.quests.forEach(q => q.current = 0);
+        saveData();
+        render();
+        alert("Penalty cleared. You can resume your daily quests.");
+      }
+    }
+
+    function editName() {
+      const n = prompt("Enter Hunter Name:", state.name);
+      if (n) {
+        state.name = n.trim();
+        saveData();
+        render();
+      }
+    }
+
+    function updateTimer() {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight - now;
+
+      checkDayTransition();
+
+      const h = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
+      const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
+      const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
+
+      document.getElementById("countdown").innerText = `${h}:${m}:${s}`;
+    }
+
+    setInterval(updateTimer, 1000);
+    updateTimer();
+    loadData();
+  </script>
+</body>
+</html>
