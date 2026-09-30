@@ -74,20 +74,35 @@
       </div>
     </div>
 
-    <!-- Quick Tools (Export, Import, Docs) -->
+    <!-- Quick Tools (Export, Import, Stats, Docs) -->
     <div class="flex justify-between items-center px-1 text-xs">
       <div class="flex gap-2">
-        <button onclick="exportData()" class="px-2.5 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
+        <button onclick="exportData()" class="px-2 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
           💾 Export
         </button>
-        <button onclick="document.getElementById('import-file').click()" class="px-2.5 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
+        <button onclick="document.getElementById('import-file').click()" class="px-2 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
           📂 Import
         </button>
         <input type="file" id="import-file" accept=".json" class="hidden" onchange="importData(event)">
       </div>
-      <button onclick="toggleDocs()" class="px-2.5 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-cyan rounded transition flex items-center gap-1">
-        📖 Docs
-      </button>
+      <div class="flex gap-2">
+        <button onclick="toggleStats()" class="px-2 py-1 bg-gray-900 border border-cyan-700 text-cyan hover:bg-cyan-950 rounded transition flex items-center gap-1">
+          📊 Stats
+        </button>
+        <button onclick="toggleDocs()" class="px-2 py-1 bg-gray-900 border border-gray-700 hover:border-cyan-500 text-gray-300 hover:text-cyan rounded transition flex items-center gap-1">
+          📖 Docs
+        </button>
+      </div>
+    </div>
+
+    <!-- Weekly Stats Modal -->
+    <div id="stats-card" class="card-bg p-4 rounded-xl border border-cyan-500/50 hidden space-y-3 text-xs leading-relaxed">
+      <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+        <h3 class="font-bold text-cyan uppercase tracking-wider text-sm">📊 5-DAY WORKOUT AVERAGES</h3>
+        <button onclick="toggleStats()" class="text-gray-400 hover:text-red-400 font-bold px-1">✕</button>
+      </div>
+      <p class="text-gray-400 text-[11px]">Average repetitions calculated over the 5 training days (Sat - Wed):</p>
+      <div id="stats-list" class="space-y-2"></div>
     </div>
 
     <!-- System Documentation -->
@@ -97,9 +112,9 @@
         <button onclick="toggleDocs()" class="text-gray-400 hover:text-red-400 font-bold px-1">✕</button>
       </div>
       <div class="space-y-2 text-gray-300 max-h-64 overflow-y-auto pr-1">
-        <p><strong class="text-cyan">1. Weekly Cycle:</strong> الأسبوع 7 أيام: السبت للأربعاء تمارين، والخميس والجمعة استشفاء وراحة دون عقوبات.</p>
-        <p><strong class="text-green">2. Recovery Protocol:</strong> الخميس والجمعة معفيان تماماً من العقاب ولا يؤثران على الستريك بالسلب.</p>
-        <p><strong class="text-red">3. Penalty:</strong> تفوتك أي تمرين في أيام التمارين يفعّل العقوبة عند منتصف الليل.</p>
+        <p><strong class="text-cyan">1. Weekly Cycle:</strong> الأسبوع 7 أيام: السبت للأربعاء (5 أيام تمرين)، والخميس والجمعة استشفاء بدون عقوبات.</p>
+        <p><strong class="text-green">2. Reps Average:</strong> يتم حساب متوسط التمارين بقسمة مجموع عدات الأسبوع على 5 أيام تدريب.</p>
+        <p><strong class="text-red">3. Penalty:</strong> عدم إنهاء اليوم التدريبي يفرض العقوبة تلقائياً عند منتصف الليل.</p>
       </div>
     </div>
 
@@ -111,7 +126,7 @@
       <div id="calendar-days" class="grid grid-cols-7 gap-1 text-center"></div>
     </div>
 
-    <!-- Rest Day Notice Banner (الخميس والجمعة) -->
+    <!-- Rest Day Notice Banner -->
     <div id="rest-day-banner" class="rest-bg p-4 rounded-xl neon-border-green hidden space-y-2">
       <div class="flex items-center gap-2">
         <span class="text-lg">🌿</span>
@@ -178,10 +193,9 @@
       return getFormattedDate(new Date());
     }
 
-    // فحص ما إذا كان اليوم خميس (4) أو جمعة (5)
     function isDayRestDay(dateObj) {
       const day = dateObj.getDay();
-      return day === 4 || day === 5; // 4: Thursday, 5: Friday
+      return day === 4 || day === 5; // Thursday, Friday
     }
 
     function isTodayRestDay() {
@@ -196,6 +210,7 @@
       penaltyActive: false,
       lastActiveDate: getTodayKey(),
       history: {},
+      questHistory: {}, // { 'YYYY-MM-DD': { questId: reps } }
       quests: [
         { id: 1, name: "Push-ups", current: 0, target: 100 },
         { id: 2, name: "Sit-ups", current: 0, target: 100 },
@@ -212,7 +227,6 @@
         } catch (e) {}
       }
 
-      // إلغاء العقوبة لو صادفت يوم راحة
       if (isTodayRestDay()) {
         state.penaltyActive = false;
       }
@@ -224,6 +238,30 @@
 
     function saveData() {
       localStorage.setItem("hunter_system_data", JSON.stringify(state));
+    }
+
+    // حساب متوسط العدات الأسبوعي على مدار 5 أيام
+    function calculateWeeklyAverage(questId) {
+      let totalReps = 0;
+      let trainingDaysCount = 0;
+
+      const today = new Date();
+      // استعراض آخر 7 أيام لتحديد أيام التمرين الـ 5
+      for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(today.getDate() - i);
+        if (!isDayRestDay(d)) {
+          const key = getFormattedDate(d);
+          trainingDaysCount++;
+          if (state.questHistory && state.questHistory[key] && state.questHistory[key][questId]) {
+            totalReps += state.questHistory[key][questId];
+          }
+        }
+      }
+
+      // القسمة على 5 أيام تمرين (أو عدد الأيام التدريبية)
+      const denominator = Math.max(1, trainingDaysCount);
+      return (totalReps / denominator).toFixed(1);
     }
 
     function checkDayTransition() {
@@ -241,11 +279,9 @@
         const wasPrevCompleted = state.history[state.lastActiveDate] === true;
 
         if (wasPrevDayRest) {
-          // يوم الراحة يعتبر مكتملاً ومحمياً تلقائياً
           state.history[state.lastActiveDate] = true;
           state.penaltyActive = false;
         } else if (!wasPrevCompleted && !state.penaltyActive) {
-          // يوم تدريب ولم يكتمل
           state.penaltyActive = true;
           state.streak = 0;
         }
@@ -321,6 +357,7 @@
       }
 
       renderCalendar();
+      renderStatsModal();
 
       const listEl = document.getElementById("quest-list");
       listEl.innerHTML = "";
@@ -330,6 +367,7 @@
 
       state.quests.forEach((q, index) => {
         const pct = Math.min(100, Math.floor((q.current / q.target) * 100));
+        const weeklyAvg = calculateWeeklyAverage(q.id);
 
         const card = document.createElement("div");
         card.className = `card-bg p-3 rounded-lg border transition ${pct >= 100 ? "border-cyan-500/70" : "border-gray-800"}`;
@@ -346,7 +384,7 @@
             </div>
           </div>
 
-          <div class="flex justify-between items-center text-xs text-gray-400 mb-1.5">
+          <div class="flex justify-between items-center text-xs text-gray-400 mb-1">
             <div class="flex items-center gap-1.5">
               <span>Progress: ${q.current} / <strong onclick="editTarget(${q.id})" class="text-cyan cursor-pointer underline decoration-dotted decoration-cyan-500 hover:text-white">${q.target}</strong></span>
               <button onclick="editTarget(${q.id})" class="text-[10px] border border-cyan-500/50 bg-cyan-950/40 text-cyan px-1.5 py-0.5 rounded hover:bg-cyan-900 transition">
@@ -354,6 +392,10 @@
               </button>
             </div>
             <span class="font-semibold ${pct >= 100 ? 'text-cyan' : 'text-gray-300'}">${pct}%</span>
+          </div>
+
+          <div class="flex justify-between items-center text-[10px] text-gray-400 mb-1.5">
+            <span class="text-cyan font-mono">📈 5-Day Avg: <strong class="text-white">${weeklyAvg}</strong> reps/day</span>
           </div>
 
           <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden mb-2.5">
@@ -422,6 +464,23 @@
         `;
         calEl.appendChild(box);
       }
+    }
+
+    function renderStatsModal() {
+      const statsList = document.getElementById("stats-list");
+      if (!statsList) return;
+      statsList.innerHTML = "";
+
+      state.quests.forEach(q => {
+        const avg = calculateWeeklyAverage(q.id);
+        const row = document.createElement("div");
+        row.className = "flex justify-between items-center p-2 rounded bg-black/40 border border-gray-800";
+        row.innerHTML = `
+          <span class="text-gray-200 font-semibold">${q.name}</span>
+          <span class="text-cyan font-mono font-bold">${avg} <span class="text-gray-400 font-normal text-[10px]">reps/day</span></span>
+        `;
+        statsList.appendChild(row);
+      });
     }
 
     function toggleDayStatus(dateKey) {
@@ -539,6 +598,13 @@
           alert(`⚠️ Incomplete Quests:\n\n${questNames}`);
           return;
         }
+
+        // تسجيل عدات التمارين لليوم الحالي لحساب المتوسط
+        if (!state.questHistory) state.questHistory = {};
+        state.questHistory[todayKey] = {};
+        state.quests.forEach(q => {
+          state.questHistory[todayKey][q.id] = q.current;
+        });
       }
 
       state.history[todayKey] = true;
@@ -594,6 +660,11 @@
     function toggleDocs() {
       const docs = document.getElementById("docs-card");
       docs.classList.toggle("hidden");
+    }
+
+    function toggleStats() {
+      const stats = document.getElementById("stats-card");
+      stats.classList.toggle("hidden");
     }
 
     function editPenaltyText() {
